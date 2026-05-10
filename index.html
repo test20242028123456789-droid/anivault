@@ -540,11 +540,10 @@ DUB
 
 <script>
 
-const API = "https://api.jikan.moe/v4/top/anime";
+const API = "https://api.jikan.moe/v4/top/anime?limit=25";
 
 let animeData = [];
 let currentAnime = null;
-let currentEpisodes = [];
 let currentLang = "sub";
 
 async function loadAnime(){
@@ -555,7 +554,7 @@ const res = await fetch(API);
 
 const data = await res.json();
 
-animeData = data.data.slice(0,24);
+animeData = data.data;
 
 renderHero(animeData[0]);
 
@@ -566,9 +565,6 @@ renderTop(animeData);
 }catch(err){
 
 console.log(err);
-
-document.getElementById("animeGrid").innerHTML =
-"<div class='loading'>Failed to load anime.</div>";
 
 }
 
@@ -583,7 +579,9 @@ document.getElementById("heroTitle").innerText =
 anime.title;
 
 document.getElementById("heroDesc").innerText =
-anime.synopsis || "No description.";
+anime.synopsis
+? anime.synopsis.substring(0,250) + "..."
+: "No description.";
 
 document.getElementById("heroWatch").onclick = ()=>{
 playAnime(anime);
@@ -598,6 +596,8 @@ const grid = document.getElementById("animeGrid");
 grid.innerHTML = "";
 
 list.forEach(anime=>{
+
+const episodes = anime.episodes || "?";
 
 const card = document.createElement("div");
 
@@ -614,7 +614,7 @@ ${anime.title}
 </div>
 
 <div class="card-meta">
-⭐ ${anime.score || "N/A"}
+⭐ ${anime.score || "N/A"} • EP ${episodes}
 </div>
 
 </div>
@@ -632,9 +632,11 @@ grid.appendChild(card);
 function renderTop(list){
 
 const sidebar = document.getElementById("topSidebar");
+
 const topGrid = document.getElementById("topGrid");
 
 sidebar.innerHTML = "";
+
 topGrid.innerHTML = "";
 
 list.slice(0,10).forEach((anime,index)=>{
@@ -652,13 +654,15 @@ ${String(index+1).padStart(2,'0')}
 <img src="${anime.images.jpg.image_url}">
 
 <div>
+
 <div style="font-weight:600;">
 ${anime.title}
 </div>
 
-<div style="color:#888;font-size:13px;margin-top:6px;">
+<div style="font-size:13px;color:#777;margin-top:5px;">
 ⭐ ${anime.score || "N/A"}
 </div>
+
 </div>
 
 `;
@@ -701,23 +705,36 @@ topGrid.appendChild(card);
 
 }
 
-async function playAnime(anime){
+function playAnime(anime){
 
 currentAnime = anime;
 
-document.getElementById("playerModal").style.display = "block";
+document.getElementById("playerModal").style.display =
+"block";
 
 document.getElementById("playerTitle").innerText =
 anime.title;
 
-const malId = anime.mal_id;
+const episodes = anime.episodes || 12;
+
+loadEpisode(1);
+
+renderEpisodes(episodes);
+
+window.scrollTo({
+top:0,
+behavior:"smooth"
+});
+
+}
+
+function loadEpisode(ep){
 
 const iframe =
-`https://megaplay.buzz/stream/mal/${malId}/1/${currentLang}`;
+`https://megaplay.buzz/stream/mal/${currentAnime.mal_id}/${ep}/${currentLang}`;
 
-document.getElementById("animePlayer").src = iframe;
-
-renderEpisodes(24);
+document.getElementById("animePlayer").src =
+iframe;
 
 }
 
@@ -746,11 +763,7 @@ document.querySelectorAll(".ep-btn")
 
 btn.classList.add("active");
 
-const iframe =
-`https://megaplay.buzz/stream/mal/${currentAnime.mal_id}/${i}/${currentLang}`;
-
-document.getElementById("animePlayer").src =
-iframe;
+loadEpisode(i);
 
 };
 
@@ -769,13 +782,14 @@ document.querySelectorAll(".server-btn")
 
 btn.classList.add("active");
 
-const activeEp =
+const active =
 document.querySelector(".ep-btn.active");
 
-const ep = activeEp ? activeEp.innerText : 1;
+const ep = active
+? active.innerText
+: 1;
 
-document.getElementById("animePlayer").src =
-`https://megaplay.buzz/stream/mal/${currentAnime.mal_id}/${ep}/${lang}`;
+loadEpisode(ep);
 
 }
 
@@ -788,15 +802,55 @@ document.getElementById("animePlayer").src = "";
 
 }
 
-window.addEventListener("message", function(event) {
+document.getElementById("searchInput")
+.addEventListener("input",e=>{
+
+const q = e.target.value
+.toLowerCase()
+.trim();
+
+if(q === ""){
+
+renderAnime(animeData);
+
+return;
+
+}
+
+const filtered = animeData.filter(anime=>{
+
+const title =
+anime.title.toLowerCase();
+
+const english =
+anime.title_english
+? anime.title_english.toLowerCase()
+: "";
+
+const japanese =
+anime.title_japanese
+? anime.title_japanese.toLowerCase()
+: "";
+
+return title.includes(q)
+|| english.includes(q)
+|| japanese.includes(q);
+
+});
+
+renderAnime(filtered);
+
+});
+
+window.addEventListener("message", function(event){
 
 let data = event.data;
 
-if (typeof data === "string") {
+if(typeof data === "string"){
 
-try {
+try{
 data = JSON.parse(data);
-} catch (e) {
+}catch{
 return;
 }
 
@@ -817,19 +871,6 @@ next.click();
 }
 
 }
-
-});
-
-document.getElementById("searchInput")
-.addEventListener("input",e=>{
-
-const q = e.target.value.toLowerCase();
-
-const filtered = animeData.filter(a=>
-a.title.toLowerCase().includes(q)
-);
-
-renderAnime(filtered);
 
 });
 
